@@ -16,7 +16,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 
-const authRoutes = require("./src/controller/user.controller");
+const authRoutes = require("./src/routes/user.route.js");
 const ConnectDb = require("./src/config/db");
 
 //database connet

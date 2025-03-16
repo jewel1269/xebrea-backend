@@ -5,15 +5,15 @@ const { REFRESH_SECRET, SECRET_KEY } = require("../config/config");
 const User = require("../model/user.model");
 const router = express.Router();
 
-router.post("/signup", async (req, res) => {
+const Signup = async (req, res) => {
   const { name, email, password } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
   const user = new User({ name, email, password: hashedPassword });
   await user.save();
   res.json({ message: "User registered successfully" });
-});
+};
 
-router.post("/login", async (req, res) => {
+const Login = async (req, res) => {
   const { email, password } = req.body;
   console.log(email, password);
   const user = await User.findOne({ email });
@@ -34,14 +34,34 @@ router.post("/login", async (req, res) => {
   await user.save();
   res.cookie("refreshToken", refreshToken, { httpOnly: true });
   res.status(200).json({
-    success:true,
-    message:"Login Successfull",
+    success: true,
+    message: "Login Successfull",
     user,
     accessToken,
   });
-});
+};
 
-router.post("/refresh", async (req, res) => {
+const getUser = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken; 
+    console.log(refreshToken);
+    if (!refreshToken) {
+      return res.status(401).json({ message: "No refresh token found" });
+    }
+
+    jwt.verify(refreshToken, process.env.REFRESH_SECRET, (err, user) => {
+      if (err) return res.status(403).json({ message: "Invalid refresh token" });
+
+      const newAccessToken = jwt.sign({ id: user.id }, process.env.ACCESS_SECRET, { expiresIn: "15m" });
+      res.json({ accessToken: newAccessToken, user });
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
+
+const Refesh = async (req, res) => {
   const { refreshToken } = req.cookies;
   if (!refreshToken) return res.status(401).json({ message: "Unauthorized" });
 
@@ -57,11 +77,11 @@ router.post("/refresh", async (req, res) => {
     });
     res.json({ accessToken: newAccessToken });
   });
-});
+};
 
-router.post("/logout", async (req, res) => {
+const LogOut = async (req, res) => {
   res.clearCookie("refreshToken");
   res.json({ message: "Logged out successfully" });
-});
+};
 
-module.exports = router;
+module.exports = { Signup, Login, LogOut, Refesh , getUser};
