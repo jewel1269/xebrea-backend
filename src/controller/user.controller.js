@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { REFRESH_SECRET, SECRET_KEY } = require("../config/config");
 const User = require("../model/user.model");
+const authMiddleware = require("../auth/auth");
 const router = express.Router();
 
 const Signup = async (req, res) => {
@@ -23,42 +24,39 @@ const Login = async (req, res) => {
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) return res.status(400).json({ message: "Invalid credentials" });
 
-  const accessToken = jwt.sign({ id: user._id }, SECRET_KEY, {
-    expiresIn: "15m",
-  });
-  const refreshToken = jwt.sign({ id: user._id }, REFRESH_SECRET, {
-    expiresIn: "7d",
+  const token = jwt.sign({ id: user._id }, SECRET_KEY, {
+    expiresIn: "7d", 
   });
 
-  user.refreshToken = refreshToken;
+  user.token = token;
   await user.save();
-  res.cookie("refreshToken", refreshToken, { httpOnly: true });
+
   res.status(200).json({
     success: true,
     message: "Login Successfull",
     user,
-    accessToken,
+    token
   });
 };
 
 const getUser = async (req, res) => {
   try {
-    const refreshToken = req.cookies.refreshToken; 
-    console.log(refreshToken);
-    if (!refreshToken) {
-      return res.status(401).json({ message: "No refresh token found" });
+    const token = req.headers.authorization?.split(" ")[1]; 
+    if (!token) {
+      return res.status(401).json({ message: "No token found" });
     }
 
-    jwt.verify(refreshToken, process.env.REFRESH_SECRET, (err, user) => {
-      if (err) return res.status(403).json({ message: "Invalid refresh token" });
+    const user = await User.findOne({ token }); 
+    if (!user) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
 
-      const newAccessToken = jwt.sign({ id: user.id }, process.env.ACCESS_SECRET, { expiresIn: "15m" });
-      res.json({ accessToken: newAccessToken, user });
-    });
+    res.json({ user });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
-}
+};
+
 
 
 const Refesh = async (req, res) => {
@@ -84,4 +82,4 @@ const LogOut = async (req, res) => {
   res.json({ message: "Logged out successfully" });
 };
 
-module.exports = { Signup, Login, LogOut, Refesh , getUser};
+module.exports = { Signup, Login, LogOut, Refesh, getUser };
